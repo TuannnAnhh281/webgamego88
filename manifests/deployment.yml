@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "armycluster-7a94"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "armycluster-7a94"
+  template:
+    metadata:
+      labels:
+        app: "armycluster-7a94"
+    spec:
+      containers:
+        - name: "armycluster-7a94"
+          image: "armyclusterregistry.azurecr.io/armycluster"
+          ports:
+          - containerPort: 8080
