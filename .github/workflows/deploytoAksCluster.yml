@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: armyclusterregistry.azurecr.io
+        username: ${{ secrets.acr_armyclusterregistry_username }}
+        password: ${{ secrets.acr_armyclusterregistry_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/" -f  "dockerfile" -t armyclusterregistry.azurecr.io/armycluster:${{ github.sha }} --label dockerfile-path=dockerfile
+        docker push armyclusterregistry.azurecr.io/armycluster:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_armycluster_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep armyclusterad46 | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace armyclusterad46`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: armyclusterad46
+        container-registry-url: armyclusterregistry.azurecr.io
+        container-registry-username: ${{ secrets.acr_armyclusterregistry_username }}
+        container-registry-password: ${{ secrets.acr_armyclusterregistry_password }}
+        secret-name: armyclusterdockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: armyclusterad46
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          armyclusterregistry.azurecr.io/armycluster:${{ github.sha }}
+        imagepullsecrets: |
+          armyclusterdockerauth
